@@ -1,0 +1,146 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// NextAuth models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  diagnostics   Diagnostic[]
+  feedbacks     Feedback[]
+  subscription  Subscription?
+  
+  // PrepFlow specific
+  currentPlateau Int?      // Current plateau score (150-180)
+  targetScore    Int?      // Target score
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// PrepFlow specific models
+model Resource {
+  id          String   @id @default(cuid())
+  title       String
+  url         String
+  platform    Platform
+  type        ResourceType
+  difficulty  Int      // 150-180 score range
+  upvotes     Int      @default(0)
+  topic       String   // "Logic Games", "Reading Comp", etc
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  feedbacks   Feedback[]
+}
+
+enum Platform {
+  REDDIT
+  YOUTUBE
+  SEVENSAGE
+  KHAN
+  BLOG
+  OTHER
+}
+
+enum ResourceType {
+  VIDEO
+  ARTICLE
+  THREAD
+  COURSE
+  TOOL
+}
+
+model Diagnostic {
+  id           String   @id @default(cuid())
+  userId       String
+  score        Int      // 150-180
+  answers      Json     // Array of question/answer pairs
+  plateauLevel String   // "150-158", "158-165", "165-170", "170+"
+  createdAt    DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id          String   @id @default(cuid())
+  userId      String
+  resourceId  String
+  helpful     Boolean
+  scoreBefore Int?
+  scoreAfter  Int?
+  comment     String?
+  createdAt   DateTime @default(now())
+  
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  stripeCustomerId String? @unique
+  stripePriceId   String?
+  stripeSubscriptionId String? @unique
+  status          SubscriptionStatus @default(FREE)
+  currentPeriodEnd DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionStatus {
+  FREE
+  PREMIUM
+  ANNUAL
+  CANCELED
+}
